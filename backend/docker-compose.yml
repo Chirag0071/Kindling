@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dating_app
+      POSTGRES_PASSWORD: dating_app_pw
+      POSTGRES_DB: dating_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://dating_app:dating_app_pw@db:5432/dating_app
+      SECRET_KEY: change_me_in_production
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+
+volumes:
+  pgdata:

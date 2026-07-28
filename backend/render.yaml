@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: kindling-api
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: DATABASE_URL
+        sync: false # paste your Aiven Postgres connection string here (see DEPLOYMENT.md)
+      - key: SECRET_KEY
+        generateValue: true # Render generates a secure random value automatically
+      - key: ALGORITHM
+        value: HS256
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: FRONTEND_ORIGIN
+        sync: false # your Vercel URL, e.g. https://kindling.vercel.app
+      - key: AWS_ACCESS_KEY_ID
+        sync: false # REQUIRED on Render — its filesystem is ephemeral, so local photo
+                    # storage gets wiped on every deploy/restart. See DEPLOYMENT.md.
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: S3_BUCKET_NAME
+        sync: false
+      - key: ENVIRONMENT
+        value: production
