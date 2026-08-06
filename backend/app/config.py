@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     s3_endpoint_url: str = ""       # e.g. https://<account_id>.r2.cloudflarestorage.com
     s3_public_base_url: str = ""    # e.g. https://pub-xxxx.r2.dev or a custom domain
 
+    # Alternative to S3/R2: set these three to use Cloudinary instead. If both
+    # Cloudinary and S3 credentials are present, Cloudinary takes priority -
+    # see get_storage_backend() in services/storage.py.
+    cloudinary_cloud_name: str = ""
+    cloudinary_api_key: str = ""
+    cloudinary_api_secret: str = ""
+
     environment: str = "development"
     frontend_origin: str = "http://localhost:3000"
 

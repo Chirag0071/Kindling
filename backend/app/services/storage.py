@@ -94,7 +94,61 @@ class S3StorageBackend(StorageBackend):
         self.client.delete_object(Bucket=self.bucket, Key=key)
 
 
+class CloudinaryStorageBackend(StorageBackend):
+    """
+    Uses Cloudinary's free tier (25 combined credits/month across storage,
+    bandwidth, and transformations - no credit card required). Good fit for
+    a small/personal deployment; note the credit pool is shared, so a busy
+    app burns through it via bandwidth faster than a flat-storage provider
+    like R2 (which has no egress fees at all). Swap back to S3/R2 any time
+    by removing the CLOUDINARY_* env vars - see get_storage_backend() below.
+    """
+
+    def __init__(self):
+        import cloudinary
+
+        cloudinary.config(
+            cloud_name=settings.cloudinary_cloud_name,
+            api_key=settings.cloudinary_api_key,
+            api_secret=settings.cloudinary_api_secret,
+            secure=True,
+        )
+        self.cloudinary = cloudinary
+
+    def upload(self, file_bytes: bytes, filename: str, content_type: str, folder: str = "uploads") -> str:
+        import cloudinary.uploader
+
+        resource_type = "video" if content_type.startswith("video/") else "image"
+        public_id = str(uuid.uuid4())
+        result = cloudinary.uploader.upload(
+            file_bytes,
+            folder=folder,
+            public_id=public_id,
+            resource_type=resource_type,
+        )
+        return result["secure_url"]
+
+    def delete(self, url: str) -> None:
+        import cloudinary.uploader
+
+        # Cloudinary URLs look like:
+        # https://res.cloudinary.com/<cloud_name>/<resource_type>/upload/v<version>/<folder>/<public_id>.<ext>
+        try:
+            after_cloud_name = url.split(f"/{settings.cloudinary_cloud_name}/", 1)[1]
+            resource_type = after_cloud_name.split("/", 1)[0]  # "image" or "video"
+            path_after_upload = after_cloud_name.split("/upload/", 1)[1]
+            # strip the leading "v<version>/" segment and the file extension
+            parts = path_after_upload.split("/", 1)
+            without_version = parts[1] if len(parts) > 1 and parts[0].startswith("v") and parts[0][1:].isdigit() else path_after_upload
+            public_id = os.path.splitext(without_version)[0]
+        except IndexError:
+            return  # not a Cloudinary URL we recognize; nothing safe to delete
+        cloudinary.uploader.destroy(public_id, resource_type=resource_type)
+
+
 def get_storage_backend() -> StorageBackend:
+    if settings.cloudinary_cloud_name and settings.cloudinary_api_key and settings.cloudinary_api_secret:
+        return CloudinaryStorageBackend()
     if settings.aws_access_key_id and settings.aws_secret_access_key and settings.s3_bucket_name:
         return S3StorageBackend()
     return LocalStorageBackend()
