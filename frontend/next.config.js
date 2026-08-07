@@ -15,6 +15,7 @@ const nextConfig = {
     remotePatterns: [
       { protocol: "http", hostname: "localhost", port: "8000" }, // local dev backend
       { protocol: "https", hostname: "**.amazonaws.com" },   // AWS S3
+      { protocol: "https", hostname: "res.cloudinary.com" }, // Cloudinary
       { protocol: "https", hostname: "**.onrender.com" },     // backend-served local media
       { protocol: "https", hostname: "**.r2.dev" },           // Cloudflare R2 default public domain
       { protocol: "https", hostname: "**.backblazeb2.com" },  // Backblaze B2
