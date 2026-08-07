@@ -23,7 +23,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           focus:border-ember focus:outline-none transition-colors ${className}`}
         {...rest}
       />
-      {error && <p className="mt-1.5 text-sm text-red-300">{error}</p>}
+      {error && <p className="mt-1.5 text-sm text-red-500">{error}</p>}
     </div>
   )
 );
@@ -50,7 +50,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
           focus:border-ember focus:outline-none transition-colors ${className}`}
         {...rest}
       />
-      {error && <p className="mt-1.5 text-sm text-red-300">{error}</p>}
+      {error && <p className="mt-1.5 text-sm text-red-500">{error}</p>}
     </div>
   )
 );

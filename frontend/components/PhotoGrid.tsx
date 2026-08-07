@@ -67,7 +67,7 @@ export default function PhotoGrid({ photos, onChange, maxPhotos = 6 }: Props) {
                 <button
                   type="button"
                   onClick={() => handleDelete(photo.id)}
-                  className="text-[11px] font-sans text-red-300 bg-dusk/80 rounded-full px-2.5 py-1 hover:bg-red-950"
+                  className="text-[11px] font-sans text-red-500 bg-dusk/80 rounded-full px-2.5 py-1 hover:bg-red-100"
                 >
                   Remove
                 </button>
@@ -98,7 +98,7 @@ export default function PhotoGrid({ photos, onChange, maxPhotos = 6 }: Props) {
           e.target.value = "";
         }}
       />
-      {error && <p className="mt-2 text-sm text-red-300">{error}</p>}
+      {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
       <p className="mt-2 text-xs text-slate font-mono">
         {photos.length}/{maxPhotos} photos · tap a square to add one, hold to manage
       </p>

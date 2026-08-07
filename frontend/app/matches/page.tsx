@@ -41,7 +41,7 @@ export default function MatchesPage() {
         {fetching ? (
           <p className="text-slate font-mono text-sm">loading···</p>
         ) : error ? (
-          <p className="text-red-300 text-sm">{error}</p>
+          <p className="text-red-500 text-sm">{error}</p>
         ) : matches.length === 0 ? (
           <div className="text-center py-20">
             <p className="font-display italic text-xl text-birch mb-2">No matches yet</p>

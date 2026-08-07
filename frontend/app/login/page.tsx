@@ -59,7 +59,7 @@ export default function LoginPage() {
             required
             autoComplete="current-password"
           />
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {error && <p className="text-sm text-red-500">{error}</p>}
           <Button type="submit" loading={loading} className="w-full mt-2">
             Log in
           </Button>

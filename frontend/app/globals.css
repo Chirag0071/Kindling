@@ -3,17 +3,17 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  background-color: #211E33;
-  color: #F3E9D8;
+  background-color: #F8EDEB;
+  color: #2D2D2D;
 }
 
 /* Visible keyboard focus everywhere, per accessibility floor */
 :focus-visible {
-  outline: 2px solid #F4C463;
+  outline: 2px solid #F4978E;
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -32,6 +32,6 @@ body {
   width: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3A3651;
+  background: #DAADAF;
   border-radius: 8px;
 }

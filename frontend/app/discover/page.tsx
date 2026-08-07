@@ -132,14 +132,14 @@ export default function DiscoverPage() {
             <button
               onClick={() => act("pass")}
               aria-label="Pass"
-              className="h-14 w-14 rounded-full border border-ash flex items-center justify-center text-slate hover:border-red-400 hover:text-red-300 transition-colors"
+              className="h-14 w-14 rounded-full border border-ash flex items-center justify-center text-slate hover:border-red-400 hover:text-red-500 transition-colors"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 6l12 12M18 6L6 18" /></svg>
             </button>
             <button
               onClick={() => act("like")}
               aria-label="Like"
-              className="h-16 w-16 rounded-full bg-ember flex items-center justify-center text-birch hover:bg-ember-dim transition-colors shadow-[0_0_24px_rgba(225,122,71,0.35)]"
+              className="h-16 w-16 rounded-full bg-ember flex items-center justify-center text-birch hover:bg-ember-dim transition-colors shadow-[0_0_24px_rgba(244,151,142,0.35)]"
             >
               <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5c-4-3-8-6.5-8-10.5a4.5 4.5 0 018-2.5 4.5 4.5 0 018 2.5c0 4-4 7.5-8 10.5z" /></svg>
             </button>

@@ -290,7 +290,7 @@ export default function ChatPage() {
           <button
             type="button"
             onClick={() => setShowEndModal(true)}
-            className="text-xs text-slate hover:text-red-300 font-mono shrink-0 px-1"
+            className="text-xs text-slate hover:text-red-500 font-mono shrink-0 px-1"
           >
             end
           </button>
@@ -302,7 +302,7 @@ export default function ChatPage() {
       )}
 
       {uploadError && (
-        <p className="text-center text-xs text-red-300 pb-2 bg-dusk">{uploadError}</p>
+        <p className="text-center text-xs text-red-500 pb-2 bg-dusk">{uploadError}</p>
       )}
 
       {showEndModal && (

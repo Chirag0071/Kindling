@@ -5,15 +5,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        dusk: "#211E33",
-        "dusk-deep": "#17151F",
-        birch: "#F3E9D8",
-        "birch-dim": "#D8CFC0",
-        ember: "#E17A47",
-        "ember-dim": "#B85F35",
-        spark: "#F4C463",
-        slate: "#9089A6",
-        ash: "#3A3651",
+        // Same token names as before so every component keeps working -
+        // only the values changed, to a light "sakura/blush" palette
+        // (soft-sand bg, pink-sorbet accent, charcoal text) instead of
+        // the old dark ember-glow theme.
+        dusk: "#F8EDEB",        // was near-black; now the main page bg (soft-sand)
+        "dusk-deep": "#FFFFFF", // was darkest bg; now card/modal/overlay surface (white)
+        birch: "#2D2D2D",       // was near-white text; now primary text (charcoal)
+        "birch-dim": "#4A4A4A", // secondary text
+        ember: "#F4978E",       // primary accent (pink-sorbet)
+        "ember-dim": "#DAADAF", // accent hover/darker state (dusty-rose)
+        spark: "#D96C86",       // secondary highlight/link-hover text - deep
+                                 // enough rose to stay readable on white/sand
+        slate: "#8E8E8E",       // muted text (text-muted)
+        ash: "#E7D9D4",         // borders / dividers / placeholder surfaces
       },
       fontFamily: {
         display: ["Fraunces", "serif"],

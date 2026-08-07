@@ -43,7 +43,7 @@ export default function EmberParticles({ count = 14, className = "" }: Props) {
         size: 2 + Math.random() * 3,
         delay: Math.random() * 7,
         duration: 5 + Math.random() * 4,
-        color: i % 3 === 0 ? "#F4C463" : "#E17A47",
+        color: i % 3 === 0 ? "#DAADAF" : "#F4978E",
       }))
     );
   }, [count]);

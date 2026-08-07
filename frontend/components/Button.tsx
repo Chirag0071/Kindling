@@ -13,7 +13,7 @@ const variantClasses: Record<Variant, string> = {
   primary: "bg-ember text-birch hover:bg-ember-dim disabled:bg-ember/40",
   secondary: "bg-transparent text-birch border border-ash hover:border-slate disabled:opacity-40",
   ghost: "bg-transparent text-slate hover:text-birch disabled:opacity-40",
-  danger: "bg-transparent text-red-300 border border-red-900/50 hover:bg-red-950/30 disabled:opacity-40",
+  danger: "bg-transparent text-red-500 border border-red-300 hover:bg-red-50 disabled:opacity-40",
 };
 
 const Button = forwardRef<HTMLButtonElement, Props>(

@@ -239,7 +239,7 @@ export default function OnboardingPage() {
             </div>
           </section>
 
-          {error && <p className="text-sm text-red-300">{error}</p>}
+          {error && <p className="text-sm text-red-500">{error}</p>}
           <Button type="submit" loading={loading} className="w-full">
             Continue to Kindling
           </Button>

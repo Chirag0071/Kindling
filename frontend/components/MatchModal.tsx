@@ -77,7 +77,7 @@ function PhotoOrb({ src, fromSide }: { src: string | null; fromSide: "left" | "r
       initial={{ x: offset * 1.8, opacity: 0 }}
       animate={{ x: offset * 0.42, opacity: 1 }}
       transition={{ duration: 1, ease: "easeOut" }}
-      className="absolute h-28 w-28 rounded-full overflow-hidden border-2 border-ember shadow-[0_0_30px_rgba(244,196,99,0.35)]"
+      className="absolute h-28 w-28 rounded-full overflow-hidden border-2 border-ember shadow-[0_0_30px_rgba(217,108,134,0.35)]"
     >
       {src ? (
         <Image src={getApiUrl(src)} alt="" fill className="object-cover" />

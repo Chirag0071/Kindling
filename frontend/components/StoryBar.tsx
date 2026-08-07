@@ -83,7 +83,7 @@ export default function StoryBar() {
           e.target.value = "";
         }}
       />
-      {error && <p className="text-xs text-red-300 mt-1.5">{error}</p>}
+      {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
 
       {viewing && (
         <StoryViewer

@@ -66,7 +66,7 @@ export default function SafetyMenu({ userId, userName, onDone, onCancel }: Props
               </button>
               <button
                 onClick={() => setMode("block-confirm")}
-                className="w-full text-left rounded-xl border border-ash px-4 py-3 text-sm text-red-300 hover:border-red-400 transition-colors"
+                className="w-full text-left rounded-xl border border-ash px-4 py-3 text-sm text-red-500 hover:border-red-400 transition-colors"
               >
                 Block {userName}
               </button>
@@ -99,7 +99,7 @@ export default function SafetyMenu({ userId, userName, onDone, onCancel }: Props
               rows={2}
               className="mb-4"
             />
-            {error && <p className="text-sm text-red-300 mb-3">{error}</p>}
+            {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
             <div className="flex gap-3">
               <Button variant="ghost" onClick={() => setMode("menu")} className="flex-1">Back</Button>
               <Button variant="danger" onClick={handleReport} loading={submitting} className="flex-1">Submit report</Button>
@@ -113,7 +113,7 @@ export default function SafetyMenu({ userId, userName, onDone, onCancel }: Props
             <p className="text-slate text-sm mb-5">
               They won't be able to message you again, and this conversation will close.
             </p>
-            {error && <p className="text-sm text-red-300 mb-3">{error}</p>}
+            {error && <p className="text-sm text-red-500 mb-3">{error}</p>}
             <div className="flex gap-3">
               <Button variant="ghost" onClick={() => setMode("menu")} className="flex-1">Back</Button>
               <Button variant="danger" onClick={handleBlock} loading={submitting} className="flex-1">Block</Button>
