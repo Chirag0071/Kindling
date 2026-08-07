@@ -51,6 +51,14 @@ async function request<T>(
 }
 
 export function getApiUrl(path: string) {
+  // Cloudinary/S3/R2 already return full absolute URLs - only local disk
+  // storage returns a relative path like "/media/photos/x.jpg" that needs
+  // the backend URL prepended. Without this check, an absolute URL gets
+  // the backend URL glued onto the front of it, producing a broken
+  // "https://backend.comhttps://res.cloudinary.com/..." mess.
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
   return `${API_URL}${path}`;
 }
 
