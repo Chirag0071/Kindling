@@ -32,6 +32,7 @@ export default function ChatPage() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [wsConnected, setWsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -97,35 +98,73 @@ export default function ChatPage() {
   useEffect(() => {
     if (!user || !matchId || !info?.is_active) return;
 
-    const ws = new WebSocket(getWsUrl(matchId));
-    wsRef.current = ws;
+    let cancelled = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempt = 0;
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+    const connect = () => {
+      const ws = new WebSocket(getWsUrl(matchId));
+      wsRef.current = ws;
 
-      if (data.type === "chat") {
-        setMessages((prev) => [...prev, {
-          id: data.id, match_id: data.match_id, sender_id: data.sender_id,
-          content: data.content, media_url: data.media_url, sent_at: data.sent_at, read_at: null,
-        }]);
-      } else if (data.type === "call-end" && data.message) {
-        setMessages((prev) => [...prev, {
-          id: data.message.id, match_id: data.message.match_id, sender_id: data.message.sender_id,
-          content: data.message.content, media_url: null, sent_at: data.message.sent_at, read_at: null,
-        }]);
-        call.handleSignal(data);
-      } else if (data.type?.startsWith("call-")) {
-        call.handleSignal(data);
-      }
+      ws.onopen = () => {
+        attempt = 0;
+        setWsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.type === "chat") {
+          setMessages((prev) => [...prev, {
+            id: data.id, match_id: data.match_id, sender_id: data.sender_id,
+            content: data.content, media_url: data.media_url, sent_at: data.sent_at, read_at: null,
+          }]);
+        } else if (data.type === "call-end" && data.message) {
+          setMessages((prev) => [...prev, {
+            id: data.message.id, match_id: data.message.match_id, sender_id: data.message.sender_id,
+            content: data.message.content, media_url: null, sent_at: data.message.sent_at, read_at: null,
+          }]);
+          call.handleSignal(data);
+        } else if (data.type?.startsWith("call-")) {
+          call.handleSignal(data);
+        }
+      };
+
+      // A dropped connection (network blip, backend restart, tab backgrounded
+      // by the OS, etc.) used to just stay dead until a manual page refresh -
+      // any file attached in the meantime uploaded fine but the chat message
+      // silently never sent, with no error and no visible trace of the photo.
+      // Reconnect automatically with a short backoff instead.
+      ws.onclose = () => {
+        setWsConnected(false);
+        wsRef.current = null;
+        if (cancelled) return;
+        const delay = Math.min(1000 * 2 ** attempt, 8000);
+        attempt += 1;
+        reconnectTimer = setTimeout(connect, delay);
+      };
+
+      ws.onerror = () => ws.close();
     };
 
-    return () => ws.close();
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      wsRef.current?.close();
+      wsRef.current = null;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, matchId, info?.is_active]);
 
   const handleSend = (e: FormEvent) => {
     e.preventDefault();
-    if (!draft.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    if (!draft.trim()) return;
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      setUploadError("Connection lost - reconnecting, please try again in a moment.");
+      return;
+    }
     wsRef.current.send(JSON.stringify({ type: "chat", content: draft.trim() }));
     setDraft("");
   };
@@ -137,6 +176,11 @@ export default function ChatPage() {
       const uploaded = await chat.uploadMedia(matchId, file);
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({ type: "chat", media_url: uploaded.url }));
+      } else {
+        // The file uploaded fine but the socket isn't open right now - it
+        // used to just vanish silently here. Now the person at least knows
+        // the send didn't go through instead of wondering where their photo went.
+        setUploadError("Uploaded, but the connection dropped before it could send. Reconnecting - try attaching it again in a moment.");
       }
     } catch (err) {
       setUploadError(err instanceof ApiError ? err.message : "Couldn't send that file.");
@@ -299,6 +343,10 @@ export default function ChatPage() {
         <div className="border-t border-ash bg-dusk-deep px-4 py-4 text-center">
           <p className="text-slate text-sm font-mono">This conversation has ended</p>
         </div>
+      )}
+
+      {!wsConnected && info?.is_active && (
+        <p className="text-center text-xs text-slate pb-2 bg-dusk">Reconnecting...</p>
       )}
 
       {uploadError && (
