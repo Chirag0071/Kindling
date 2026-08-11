@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Image from "next/image";
 import { photos as photosApi, getApiUrl, ApiError } from "@/lib/api";
 import type { Photo } from "@/lib/types";
+import MediaLightbox from "@/components/MediaLightbox";
 
 interface Props {
   photos: Photo[];
@@ -14,6 +15,7 @@ interface Props {
 export default function PhotoGrid({ photos, onChange, maxPhotos = 6 }: Props) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
@@ -41,6 +43,7 @@ export default function PhotoGrid({ photos, onChange, maxPhotos = 6 }: Props) {
   };
 
   const slots = Array.from({ length: maxPhotos }, (_, i) => photos[i] || null);
+  const lightboxItems = photos.map((p) => ({ url: p.url, isVideo: false }));
 
   return (
     <div>
@@ -48,26 +51,33 @@ export default function PhotoGrid({ photos, onChange, maxPhotos = 6 }: Props) {
         {slots.map((photo, i) =>
           photo ? (
             <div key={photo.id} className="relative aspect-[3/4] rounded-xl overflow-hidden bg-dusk-deep group">
-              <Image src={getApiUrl(photo.url)} alt="" fill className="object-cover" />
+              <button
+                type="button"
+                onClick={() => setLightboxIndex(photos.findIndex((p) => p.id === photo.id))}
+                className="absolute inset-0 z-0"
+                aria-label="View photo full size"
+              >
+                <Image src={getApiUrl(photo.url)} alt="" fill className="object-cover" />
+              </button>
               {photo.is_primary && (
-                <span className="absolute top-1.5 left-1.5 rounded-full bg-ember/90 px-2 py-0.5 text-[10px] font-mono text-birch">
+                <span className="absolute top-1.5 left-1.5 rounded-full bg-ember/90 px-2 py-0.5 text-[10px] font-mono text-birch pointer-events-none">
                   MAIN
                 </span>
               )}
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-dusk-deep/0 opacity-0 group-hover:opacity-100 group-hover:bg-dusk-deep/60 transition-all">
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-dusk-deep/0 opacity-0 group-hover:opacity-100 group-hover:bg-dusk-deep/60 transition-all pointer-events-none">
                 {!photo.is_primary && (
                   <button
                     type="button"
-                    onClick={() => handleSetPrimary(photo.id)}
-                    className="text-[11px] font-sans text-birch bg-dusk/80 rounded-full px-2.5 py-1 hover:bg-ember/80"
+                    onClick={(e) => { e.stopPropagation(); handleSetPrimary(photo.id); }}
+                    className="pointer-events-auto text-[11px] font-sans text-birch bg-dusk/80 rounded-full px-2.5 py-1 hover:bg-ember/80"
                   >
                     Set as main
                   </button>
                 )}
                 <button
                   type="button"
-                  onClick={() => handleDelete(photo.id)}
-                  className="text-[11px] font-sans text-red-500 bg-dusk/80 rounded-full px-2.5 py-1 hover:bg-red-100"
+                  onClick={(e) => { e.stopPropagation(); handleDelete(photo.id); }}
+                  className="pointer-events-auto text-[11px] font-sans text-red-500 bg-dusk/80 rounded-full px-2.5 py-1 hover:bg-red-100"
                 >
                   Remove
                 </button>
@@ -100,8 +110,17 @@ export default function PhotoGrid({ photos, onChange, maxPhotos = 6 }: Props) {
       />
       {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
       <p className="mt-2 text-xs text-slate font-mono">
-        {photos.length}/{maxPhotos} photos · tap a square to add one, hold to manage
+        {photos.length}/{maxPhotos} photos · tap a square to view full size, hover to manage
       </p>
+
+      {lightboxIndex !== null && (
+        <MediaLightbox
+          items={lightboxItems}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
     </div>
   );
 }
