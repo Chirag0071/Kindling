@@ -1,106 +1,134 @@
-# Kindling
+# Kindling — Real-Time Chat App
 
-A full-stack dating app — matching, real-time chat, WebRTC video calls, 24-hour
-stories, and photo/video sharing. Built with FastAPI + PostgreSQL on the backend
-and Next.js 15 + TypeScript on the frontend.
+A chatting app centered on real-time messaging — live chat, photo/video sharing,
+WebRTC video calls, matching, and disappearing stories. FastAPI + PostgreSQL
+backend, Next.js 15 + TypeScript frontend.
 
-## Features
+## Chat Features
 
-- **Auth** — email/password signup and login with JWT sessions (bcrypt-hashed passwords)
-- **Profiles & onboarding** — name, birthdate, gender/preference, bio, prompts, photos
-- **Discovery & matching** — swipe-style discovery feed with a mutual-like matching engine
-- **Real-time chat** — WebSocket-based messaging, read receipts, rate limiting
-- **Photo & video sharing in chat** — upload media inline, tap to view full-size, browse
-  everything shared in a conversation from a dedicated gallery
-- **WebRTC video calling** — one-tap start/end video calls with signaling over the
-  existing chat WebSocket
-- **24-hour stories** — post photos/videos visible only to matches for 24 hours
-- **Safety layer** — block, report, rate limiting, and an anti-ghosting conversation
-  closure feature
-- **Pluggable media storage** — local disk for development, S3-compatible (Cloudflare
-  R2, AWS S3, etc.) for production, selected automatically by which env vars are set
+- **Real-time messaging** over WebSocket (`/chat/ws/{match_id}`) — instant delivery,
+  no polling
+- **Auto-reconnect** — if the connection drops (network blip, backend restart), it
+  reconnects automatically with backoff instead of silently dying
+- **Read receipts** — messages marked read when the recipient opens the thread
+- **Photo & video sharing in chat** — attach directly from the message bar, 8MB image
+  / 30MB video limit, stored on Cloudinary
+- **Tap to view full size** — Instagram-style lightbox with swipe/arrow navigation
+  between photos and videos
+- **Shared media gallery** — tap the other person's name to see every photo/video
+  exchanged in that conversation
+- **WebRTC video calling** — one-tap start/end, signaling carried over the same
+  WebSocket connection as chat (offer/answer/ICE candidates, call state)
+- **Anti-ghosting closure flow** — a conversation can be formally closed with a
+  reason, instead of just going silent
+- **Rate limiting** — `slowapi` throttles message/upload spam per user
+- **Safety layer** — block, report, and blocked users' messages/media never reach you
 
-## Tech stack
+## Other Features
 
-**Backend**
-- FastAPI (Python) + Uvicorn
-- PostgreSQL + SQLAlchemy ORM + Alembic migrations
-- WebSockets for chat and call signaling
-- JWT auth (`python-jose`) + `passlib`/`bcrypt` for password hashing
-- `boto3` for S3-compatible object storage
-- `slowapi` for rate limiting
-- `pytest` + `httpx` for the test suite (72 tests)
+- Email/password auth with JWT sessions
+- Profile creation & onboarding (photos, bio, prompts, gender/preference)
+- Swipe-style discovery feed with mutual-like matching
+- 24-hour disappearing stories, visible to matches only
+- Pluggable media storage: Cloudinary (default) → S3-compatible (AWS S3 / Cloudflare
+  R2) → local disk, auto-selected by which env vars are set
 
-**Frontend**
-- Next.js 15 (App Router) + TypeScript
-- Tailwind CSS + Framer Motion
-- Native WebSocket client + WebRTC (`RTCPeerConnection`) for calls
+## Tech Stack
 
-## Project structure
+**Backend** — FastAPI, PostgreSQL, SQLAlchemy, Alembic, native WebSockets,
+`python-jose` (JWT), `passlib`/`bcrypt`, `boto3`, `cloudinary`, `slowapi`, pytest
+
+**Frontend** — Next.js 15 (App Router), TypeScript, Tailwind CSS, Framer Motion,
+native WebSocket client, `RTCPeerConnection` for video calls
+
+## Project Structure
 
 ```
 kindling/
 ├── backend/
 │   ├── app/
-│   │   ├── routers/         # auth, profile, matching, chat, photos, stories, safety
-│   │   ├── services/        # storage backend, websocket manager, rate limiter
-│   │   ├── models.py        # SQLAlchemy models
-│   │   ├── schemas.py       # Pydantic request/response schemas
-│   │   ├── auth.py          # JWT + password hashing helpers
-│   │   ├── config.py        # env-driven settings
-│   │   ├── database.py      # SQLAlchemy engine/session
-│   │   └── main.py          # FastAPI app, CORS, router registration
-│   ├── alembic/versions/    # database migrations
-│   ├── tests/                # pytest suite
+│   │   ├── routers/
+│   │   │   ├── chat.py          # messages, WebSocket, media upload, call signaling
+│   │   │   ├── auth.py
+│   │   │   ├── profiles.py
+│   │   │   ├── matching.py
+│   │   │   ├── photos.py
+│   │   │   ├── stories.py
+│   │   │   └── safety.py        # block/report
+│   │   ├── services/
+│   │   │   ├── websocket_manager.py   # connection registry, broadcast
+│   │   │   ├── storage.py             # Cloudinary / S3 / local disk backends
+│   │   │   └── rate_limiter.py
+│   │   ├── models.py
+│   │   ├── schemas.py
+│   │   ├── auth.py              # JWT + password hashing
+│   │   ├── config.py            # env-driven settings
+│   │   ├── database.py
+│   │   └── main.py              # app entrypoint, CORS, router registration
+│   ├── alembic/versions/        # migrations
+│   ├── tests/                   # pytest suite (83 tests)
 │   ├── Dockerfile
-│   ├── docker-compose.yml   # local dev: API + Postgres
+│   ├── docker-compose.yml       # local dev: API + Postgres
 │   └── requirements.txt
 ├── frontend/
-│   ├── app/                 # Next.js App Router pages (login, signup, onboarding,
-│   │                         discover, matches, chat/[matchId], profile)
-│   ├── components/          # ProfileCard, Avatar, MediaLightbox, SharedMediaModal,
-│   │                         VideoCallOverlay, StoryBar/Viewer, SafetyMenu, etc.
-│   └── lib/                 # api client, auth context, WebRTC hook, types
-├── DEPLOYMENT.md            # Render deployment guide
-├── ORACLE_DEPLOYMENT.md     # Oracle Cloud Always Free deployment guide (no cold starts)
-├── BACK4APP_DEPLOYMENT.md   # Back4app Containers deployment guide (no credit card)
-├── LICENSE                  # MIT
+│   ├── app/
+│   │   ├── chat/[matchId]/page.tsx   # chat screen: messages, WS, calls, media
+│   │   ├── matches/page.tsx
+│   │   ├── discover/page.tsx
+│   │   ├── profile/page.tsx
+│   │   ├── onboarding/page.tsx
+│   │   ├── login/, signup/page.tsx
+│   │   └── globals.css
+│   ├── components/
+│   │   ├── VideoCallOverlay.tsx      # WebRTC call UI
+│   │   ├── MediaLightbox.tsx         # full-size photo/video viewer
+│   │   ├── SharedMediaModal.tsx      # "shared with X" gallery
+│   │   ├── PhotoGrid.tsx             # profile photo management
+│   │   ├── ProfileCard.tsx, MatchModal.tsx, StoryBar.tsx, StoryViewer.tsx
+│   │   ├── Avatar.tsx                # graceful fallback if a photo fails to load
+│   │   └── SafetyMenu.tsx, EndConversationModal.tsx
+│   └── lib/
+│       ├── api.ts               # REST client, getApiUrl/getWsUrl
+│       ├── useWebRTCCall.ts     # call state machine
+│       ├── auth-context.tsx
+│       └── types.ts
+├── DEPLOYMENT.md                # Render deploy guide
+├── ORACLE_DEPLOYMENT.md         # Oracle Cloud Always Free (no cold starts)
+├── BACK4APP_DEPLOYMENT.md       # Back4app Containers (no credit card)
+├── FULL_DEPLOYMENT_WALKTHROUGH.md
+├── LICENSE                      # MIT
 └── .gitignore
 ```
 
-## API overview
+## Chat System — How It Works
 
-All routes are prefixed as shown; the full interactive schema is at `/docs` (Swagger UI)
-once the backend is running.
+1. Client opens `WS /chat/ws/{match_id}?token=<jwt>` after loading a conversation
+2. Backend validates the token and match membership, registers the connection in
+   `websocket_manager.py`
+3. Sending a message: client sends `{"type": "chat", "content": "..."}` or
+   `{"type": "chat", "media_url": "..."}` over the socket
+4. Backend validates (rate limit, media URL allowlist), persists to Postgres, then
+   broadcasts to both participants' open connections
+5. Video calls reuse the same socket: `call-offer` / `call-answer` /
+   `call-ice-candidate` / `call-decline` messages carry WebRTC signaling; call end
+   posts a summary message into the same chat thread
+6. If the socket drops, the client auto-reconnects with exponential backoff (1s → 8s
+   cap) instead of leaving the chat dead until a manual refresh
 
-| Area | Routes |
-|---|---|
-| **Auth** (`/auth`) | `POST /signup`, `POST /login`, `GET /me` |
-| **Profile** (`/profile`) | `POST /`, `GET /me` |
-| **Photos** (`/photos`) | `POST /upload`, `GET /me`, `PATCH /{id}/primary`, `DELETE /{id}` |
-| **Matching** (`/matching`) | `GET /discover`, `POST /like`, `POST /pass`, `GET /matches` |
-| **Chat** (`/chat`) | `GET /{match_id}/info`, `GET /{match_id}/messages`, `POST /{match_id}/read`, `GET /{match_id}/status`, `POST /{match_id}/close`, `POST /{match_id}/media`, `WS /ws/{match_id}` |
-| **Stories** (`/stories`) | `POST /upload`, `GET /me`, `GET /feed`, `DELETE /{id}` |
-| **Safety** (`/safety`) | `POST /block`, `DELETE /block/{user_id}`, `GET /blocks`, `POST /report` |
-| **Health** | `GET /health` |
-
-The chat WebSocket (`/chat/ws/{match_id}`) carries both regular messages and WebRTC
-call-signaling events (offer/answer/ICE candidates, call start/end) over the same
-connection.
-
-## Getting started (local development)
+## Running Locally
 
 ### Prerequisites
 - Python 3.11+
 - Node.js 18+
 - PostgreSQL (or use the provided `docker-compose.yml`)
-- Docker (optional, for the quickest backend + DB setup)
+- A free Cloudinary account (for photo/video storage — local disk works too but
+  isn't persistent)
 
 ### Backend
 
 ```bash
 cd backend
-cp .env.example .env          # fill in DATABASE_URL, SECRET_KEY, etc.
+cp .env.example .env          # fill in DATABASE_URL, SECRET_KEY, CLOUDINARY_* etc.
 python3 -m venv venv
 source venv/bin/activate      # Windows: venv\Scripts\activate
 pip install -r requirements-dev.txt
@@ -114,20 +142,20 @@ cd backend
 docker compose up --build
 ```
 
-Backend runs at `http://localhost:8000` (docs at `/docs`).
+Runs at `http://localhost:8000` — interactive API docs at `/docs`.
 
 ### Frontend
 
 ```bash
 cd frontend
-cp .env.example .env.local    # set NEXT_PUBLIC_API_URL to your backend URL
+cp .env.example .env.local    # NEXT_PUBLIC_API_URL=http://localhost:8000
 npm install
 npm run dev
 ```
 
-Frontend runs at `http://localhost:3000`.
+Runs at `http://localhost:3000`.
 
-### Running tests
+### Running Tests
 
 ```bash
 cd backend
@@ -136,30 +164,26 @@ export SECRET_KEY="test_secret_key"
 pytest tests/ -v
 ```
 
-## Media storage
+83 tests covering auth, profiles, matching, chat (including WebSocket message
+delivery and media URL validation), photos, stories, safety, and storage backends.
 
-`StorageBackend` in `backend/app/services/storage.py` picks a backend automatically:
-- **No AWS credentials set** → local disk storage (`backend/media/`), served at `/media`.
-  Fine for local development; **do not rely on this in production** — most free hosts
-  have ephemeral filesystems that wipe local files on every restart/redeploy.
-- **`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `S3_BUCKET_NAME` set** → S3-compatible
-  storage. Works with AWS S3 or any S3-compatible provider (Cloudflare R2, Backblaze B2,
-  DigitalOcean Spaces) via `S3_ENDPOINT_URL` / `S3_PUBLIC_BASE_URL`.
+## Environment Variables (Backend)
+
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `SECRET_KEY` | JWT signing secret |
+| `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET` | Media storage (preferred) |
+| `AWS_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` / `S3_BUCKET_NAME` | S3/R2 fallback storage |
+| `FRONTEND_ORIGIN` | Exact frontend URL, required for CORS |
+| `ENVIRONMENT` | `development` / `production` |
 
 ## Deployment
 
-Three deployment paths are documented, depending on what you need:
-
-| Guide | Best for | Cost | Credit card | Cold starts |
-|---|---|---|---|---|
-| [`DEPLOYMENT.md`](./DEPLOYMENT.md) | Quick free deploy | Free | No | Yes (sleeps after 15 min idle) |
-| [`BACK4APP_DEPLOYMENT.md`](./BACK4APP_DEPLOYMENT.md) | Free alternative to Render | Free | No | Likely yes; 256MB RAM ceiling |
-| [`ORACLE_DEPLOYMENT.md`](./ORACLE_DEPLOYMENT.md) | Real users, no cold starts | Free | Yes (verification only, not charged) | No — real VM, always on |
-
-Recommended companion services either way:
-- **Frontend** → [Vercel](https://vercel.com) (free Hobby tier)
-- **Database** → [Aiven](https://aiven.io) free PostgreSQL tier
-- **Media storage** → [Cloudflare R2](https://developers.cloudflare.com/r2/) (free, no egress fees)
+See `FULL_DEPLOYMENT_WALKTHROUGH.md` for a complete zero-to-live walkthrough
+(Cloudinary → Aiven Postgres → Render backend → Vercel frontend). Alternative
+backend hosts (`ORACLE_DEPLOYMENT.md`, `BACK4APP_DEPLOYMENT.md`) are drop-in
+replacements for the Render step only.
 
 ## License
 
