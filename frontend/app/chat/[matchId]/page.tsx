@@ -127,6 +127,13 @@ export default function ChatPage() {
           call.handleSignal(data);
         } else if (data.type?.startsWith("call-")) {
           call.handleSignal(data);
+        } else if (data.type === "error") {
+          // The backend rejects things like invalid media URLs over the
+          // socket rather than the HTTP response, since the send happens
+          // over the WS connection - this was previously discarded here
+          // with zero visible trace, making rejections look identical to
+          // "nothing happened."
+          setUploadError(data.detail || "That message couldn't be sent.");
         }
       };
 

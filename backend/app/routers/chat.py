@@ -29,6 +29,10 @@ def _is_valid_media_url(url: str) -> bool:
     """
     if url.startswith("/media/"):
         return True  # local storage, served by our own API
+    if settings.cloudinary_cloud_name and url.startswith(
+        f"https://res.cloudinary.com/{settings.cloudinary_cloud_name}/"
+    ):
+        return True
     if settings.s3_public_base_url and url.startswith(settings.s3_public_base_url.rstrip("/") + "/"):
         return True
     if not settings.s3_endpoint_url and settings.s3_bucket_name:
