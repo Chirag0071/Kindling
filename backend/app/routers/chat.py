@@ -26,6 +26,12 @@ def _is_valid_media_url(url: str) -> bool:
     could pass any string as media_url and get it rendered as an <img>/<video>
     src for the other person - only allow URLs pointing at media we actually
     stored ourselves.
+
+    NOTE: photo/video attachments are NOT end-to-end encrypted (unlike text
+    content below) - they're stored as normal Cloudinary/S3 files, readable
+    by anyone with the URL, same as before. Encrypting media would mean
+    Cloudinary can no longer transform/optimize/CDN-serve it, which is a
+    separate, larger piece of work than text E2E.
     """
     if url.startswith("/media/"):
         return True  # local storage, served by our own API
@@ -65,8 +71,6 @@ def _get_match_for_participant(
     if user_id not in (match.user1_id, match.user2_id):
         return None
 
-    # Blocking is a harder cutoff than closing: a block always hides the
-    # match, even if the caller only needs read access (e.g. history).
     other_id = match.user2_id if match.user1_id == user_id else match.user1_id
     blocked = db.query(models.Block).filter(
         or_(
@@ -78,6 +82,24 @@ def _get_match_for_participant(
         return None
 
     return match
+
+
+def _message_to_out(message: models.Message, match: models.Match) -> schemas.MessageOut:
+    return schemas.MessageOut(
+        id=message.id,
+        match_id=message.match_id,
+        sender_id=message.sender_id,
+        content=message.content,
+        media_url=message.media_url,
+        sent_at=message.sent_at,
+        read_at=message.read_at,
+        is_encrypted=message.is_encrypted,
+        iv=message.iv,
+        user1_id=match.user1_id,
+        user2_id=match.user2_id,
+        encrypted_key_user1=message.encrypted_key_user1,
+        encrypted_key_user2=message.encrypted_key_user2,
+    )
 
 
 @router.get("/{match_id}/info", response_model=schemas.ChatInfoOut)
@@ -92,6 +114,7 @@ def get_chat_info(
 
     other_id = match.user2_id if match.user1_id == current_user.id else match.user1_id
     other_profile = db.query(models.Profile).filter(models.Profile.user_id == other_id).first()
+    other_user = db.query(models.User).filter(models.User.id == other_id).first()
     primary_photo = (
         db.query(models.Photo)
         .filter(models.Photo.user_id == other_id, models.Photo.is_primary.is_(True))
@@ -103,6 +126,9 @@ def get_chat_info(
         other_user_id=other_id,
         other_first_name=other_profile.first_name if other_profile else "Someone",
         other_photo_url=primary_photo.url if primary_photo else None,
+        other_public_key=other_user.public_key if other_user else None,
+        user1_id=match.user1_id,
+        user2_id=match.user2_id,
     )
 
 
@@ -112,18 +138,17 @@ def get_messages(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    # require_active=False: a closed match's history (including the closure
-    # message) should still be readable — that's the whole point of giving
-    # people closure instead of a silent vanish.
-    if not _get_match_for_participant(db, match_id, current_user.id, require_active=False):
+    match = _get_match_for_participant(db, match_id, current_user.id, require_active=False)
+    if not match:
         raise HTTPException(status_code=404, detail="Match not found")
 
-    return (
+    messages = (
         db.query(models.Message)
         .filter(models.Message.match_id == match_id)
         .order_by(models.Message.sent_at.asc())
         .all()
     )
+    return [_message_to_out(m, match) for m in messages]
 
 
 @router.post("/{match_id}/read")
@@ -151,10 +176,6 @@ def mark_read(
     return {"marked_read": len(unread)}
 
 
-# Pre-written, kind closure messages so ending a match never requires the
-# awkward task of writing your own rejection. Modeled on what apps like
-# Hinge (nudge only) and Bumble (silent expiry) still don't offer natively:
-# an explicit, humane way to close a conversation instead of just vanishing.
 CLOSURE_MESSAGES = {
     "not_feeling_it": "Hey, I've enjoyed chatting but don't think we're a match — wishing you the best!",
     "met_someone_else": "Hi! I've decided to focus on a connection I've made — thanks for the chats, take care!",
@@ -193,7 +214,7 @@ def get_match_status(
 
     hours = (datetime.utcnow() - last_message.sent_at).total_seconds() / 3600
     needs_response = last_message.sender_id != current_user.id
-    is_stale = needs_response and hours >= 72  # 3 days with no reply = ghosting territory
+    is_stale = needs_response and hours >= 72
 
     return schemas.MatchStatusOut(
         match_id=match_id,
@@ -231,11 +252,6 @@ def close_match(
     db.commit()
     db.refresh(closure_message)
 
-    # NOTE: this doesn't push over the live WebSocket yet (that needs a
-    # sync-to-async bridge since this route runs in the threadpool, not the
-    # event loop). For now the other party sees the closure message and the
-    # match going inactive next time they poll /chat/{match_id}/messages or
-    # /matching/matches. Worth adding a proper event push later.
     return schemas.MatchCloseResult(status="closed", closure_message_id=closure_message.id)
 
 
@@ -246,8 +262,6 @@ async def upload_chat_media(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
 ):
-    # require_active=True (the default) - can't attach media to a closed
-    # match, consistent with not being able to send new text messages either.
     match = _get_match_for_participant(db, match_id, current_user.id)
     if not match:
         raise HTTPException(status_code=404, detail="Match not found")
@@ -273,18 +287,17 @@ async def chat_ws(
     match_id: str,
     token: str = Query(...),
 ):
-    # Browsers can't set custom headers on a WebSocket handshake, so the JWT
-    # is passed as a query param here instead of an Authorization header.
     try:
         user_id = auth.decode_token(token)
     except HTTPException:
-        await websocket.close(code=4401)  # unauthorized
+        await websocket.close(code=4401)
         return
 
     with acquire_db_session() as db:
         match = _get_match_for_participant(db, match_id, user_id)
+        match_user1_id, match_user2_id = (match.user1_id, match.user2_id) if match else (None, None)
     if not match:
-        await websocket.close(code=4404)  # not found / not a participant
+        await websocket.close(code=4404)
         return
 
     await manager.connect(match_id, user_id, websocket)
@@ -295,11 +308,6 @@ async def chat_ws(
             except WebSocketDisconnect:
                 raise
             except Exception:
-                # Malformed JSON or any other decode failure from this
-                # client - previously this crashed the whole connection
-                # (and cascaded into crashing the OTHER participant's
-                # connection too, via a failed broadcast to this dead
-                # socket). Now it's just a rejected message.
                 try:
                     await websocket.send_json({"type": "error", "detail": "Malformed message"})
                 except Exception:
@@ -324,17 +332,30 @@ async def chat_ws(
                     await websocket.send_json({"type": "error", "detail": "Invalid media URL"})
                     continue
 
-                # Session acquired just for this message, released right
-                # after - not held for the whole connection. Holding one
-                # pooled connection per open WebSocket exhausted the pool
-                # at ~15 concurrent chats (found via load testing); this
-                # way an idle socket ties up nothing.
+                # E2E fields - only meaningful for text content, not media. A
+                # client that hasn't generated/uploaded a keypair yet (or is
+                # talking to a match whose other side hasn't) just omits
+                # these and the message stores/shows as plain text, same as
+                # before E2E existed - it degrades gracefully instead of
+                # failing to send.
+                is_encrypted = bool(data.get("is_encrypted") and media_url is None)
+                iv = data.get("iv") if is_encrypted else None
+                encrypted_key_user1 = data.get("encrypted_key_user1") if is_encrypted else None
+                encrypted_key_user2 = data.get("encrypted_key_user2") if is_encrypted else None
+                if is_encrypted and not (iv and encrypted_key_user1 and encrypted_key_user2):
+                    await websocket.send_json({"type": "error", "detail": "Incomplete encrypted message"})
+                    continue
+
                 with acquire_db_session() as db:
                     message = models.Message(
                         match_id=match_id,
                         sender_id=user_id,
                         content=content,
                         media_url=media_url,
+                        is_encrypted=is_encrypted,
+                        iv=iv,
+                        encrypted_key_user1=encrypted_key_user1,
+                        encrypted_key_user2=encrypted_key_user2,
                     )
                     db.add(message)
                     db.commit()
@@ -349,15 +370,15 @@ async def chat_ws(
                     "content": content,
                     "media_url": media_url,
                     "sent_at": sent_at.isoformat(),
+                    "is_encrypted": is_encrypted,
+                    "iv": iv,
+                    "user1_id": match_user1_id,
+                    "user2_id": match_user2_id,
+                    "encrypted_key_user1": encrypted_key_user1,
+                    "encrypted_key_user2": encrypted_key_user2,
                 })
 
             elif msg_type in CALL_SIGNAL_TYPES:
-                # Pure signaling relay to whoever else is connected to this
-                # match right now - offer/answer/ICE candidates are WebRTC
-                # connection plumbing, not chat content, so none of this is
-                # persisted to the Message table (no DB session needed at
-                # all here). Excludes the sender - they don't need their
-                # own offer/answer echoed back to them.
                 await manager.send_to_match(match_id, {
                     "type": msg_type,
                     "from_user_id": user_id,
@@ -365,8 +386,6 @@ async def chat_ws(
                 }, exclude_user_id=user_id)
 
             elif msg_type == "call-end":
-                # This one IS logged - a short "Video call · 3:24" entry in
-                # the conversation, same idea as a normal call history.
                 duration = (data.get("payload") or {}).get("duration_seconds")
                 with acquire_db_session() as db:
                     message = models.Message(
@@ -389,15 +408,18 @@ async def chat_ws(
                         "content": content,
                         "media_url": None,
                         "sent_at": sent_at.isoformat(),
+                        "is_encrypted": False,
+                        "iv": None,
+                        "user1_id": match_user1_id,
+                        "user2_id": match_user2_id,
+                        "encrypted_key_user1": None,
+                        "encrypted_key_user2": None,
                     },
                 })
 
     except WebSocketDisconnect:
         pass
     finally:
-        # Always runs, regardless of how the loop exited (clean disconnect,
-        # or previously: an unhandled exception that skipped cleanup
-        # entirely and left a dead socket registered in the room).
         manager.disconnect(match_id, user_id)
         try:
             await manager.send_to_match(match_id, {"type": "call-peer-disconnected", "from_user_id": user_id})

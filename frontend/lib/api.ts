@@ -84,6 +84,12 @@ export const auth = {
     }, false),
 
   me: () => request<User>("/auth/me"),
+
+  setPublicKey: (publicKey: string) =>
+    request<{ status: string }>("/auth/public-key", {
+      method: "PUT",
+      body: JSON.stringify({ public_key: publicKey }),
+    }),
 };
 
 // ---- Profile ----

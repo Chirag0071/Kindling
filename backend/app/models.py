@@ -37,6 +37,12 @@ class User(Base):
     phone = Column(String, unique=True, index=True, nullable=True)
     password_hash = Column(String, nullable=False)
 
+    # RSA-OAEP public key (SPKI, base64), generated client-side. The matching
+    # private key never leaves the user's device - see frontend/lib/crypto.ts.
+    # Null until the client generates a keypair and uploads it, which happens
+    # automatically right after signup/login.
+    public_key = Column(Text, nullable=True)
+
     is_verified = Column(Boolean, default=False)   # email/phone verified
     is_photo_verified = Column(Boolean, default=False)  # selfie verification
     is_active = Column(Boolean, default=True)       # false if banned/deactivated
@@ -131,8 +137,21 @@ class Message(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
     match_id = Column(UUID(as_uuid=False), ForeignKey("matches.id"), nullable=False, index=True)
     sender_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False)
+
+    # When is_encrypted=True: `content` holds base64 AES-GCM ciphertext (not
+    # plaintext), `iv` holds the base64 nonce, and encrypted_key_user1/2 each
+    # hold the same random AES key RSA-encrypted separately for each match
+    # participant's public key - so either person can decrypt their own copy
+    # with their own private key, but the server (or anyone with DB access)
+    # only ever sees ciphertext. Old rows from before E2E was added have
+    # is_encrypted=False and content is plain text, for backward compatibility.
     content = Column(Text, nullable=True)
     media_url = Column(String, nullable=True)
+    is_encrypted = Column(Boolean, default=False, nullable=False)
+    iv = Column(String, nullable=True)
+    encrypted_key_user1 = Column(Text, nullable=True)
+    encrypted_key_user2 = Column(Text, nullable=True)
+
     sent_at = Column(DateTime, default=datetime.utcnow)
     read_at = Column(DateTime, nullable=True)
 

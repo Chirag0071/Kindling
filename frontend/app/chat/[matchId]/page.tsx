@@ -12,6 +12,8 @@ import VideoCallOverlay from "@/components/VideoCallOverlay";
 import Avatar from "@/components/Avatar";
 import MediaLightbox from "@/components/MediaLightbox";
 import SharedMediaModal from "@/components/SharedMediaModal";
+import { ensureKeysReady, encryptMessage, decryptMessage } from "@/lib/crypto";
+import { auth as authApi } from "@/lib/api";
 import type { ChatInfo, Message, CloseReason } from "@/lib/types";
 
 const VIDEO_EXT = /\.(mp4|webm|mov|quicktime)$/i;
@@ -58,6 +60,8 @@ export default function ChatPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [wsConnected, setWsConnected] = useState(false);
+  const [ownPublicKey, setOwnPublicKey] = useState<string | null>(null);
+  const [decrypted, setDecrypted] = useState<Record<string, string | null>>({});
   const wsRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,10 +94,50 @@ export default function ChatPage() {
     if (idx !== undefined) setLightboxIndex(idx);
   };
 
+  // Decrypt any encrypted messages we haven't decrypted yet, whenever the
+  // message list changes (initial load, new message arriving over the WS).
+  // Runs client-side only - the server never sees plaintext, so there's
+  // nothing to do here except locally undo what encryptMessage() did on
+  // the sender's device.
+  useEffect(() => {
+    const pending = messages.filter((m) => m.is_encrypted && m.content && !(m.id in decrypted));
+    if (pending.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const results: Record<string, string | null> = {};
+      for (const m of pending) {
+        const myKeyBlob = user?.id === m.user1_id ? m.encrypted_key_user1 : m.encrypted_key_user2;
+        if (!myKeyBlob || !m.iv || !m.content) {
+          results[m.id] = null;
+          continue;
+        }
+        results[m.id] = await decryptMessage(m.content, m.iv, myKeyBlob);
+      }
+      if (!cancelled) setDecrypted((prev) => ({ ...prev, ...results }));
+    })();
+    return () => { cancelled = true; };
+  }, [messages, user?.id, decrypted]);
+
   useEffect(() => {
     if (authLoading) return;
     if (!user) router.replace("/login");
   }, [authLoading, user, router]);
+
+  // Set up this device's encryption keypair once logged in. If it's brand
+  // new (first login on this device/browser), upload the public half so
+  // other people can encrypt messages to this user - the private half never
+  // leaves this function.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    ensureKeysReady().then(({ publicKeyBase64, isNew }) => {
+      if (cancelled) return;
+      setOwnPublicKey(publicKeyBase64);
+      if (isNew) authApi.setPublicKey(publicKeyBase64).catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, [user]);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }));
@@ -143,11 +187,17 @@ export default function ChatPage() {
           setMessages((prev) => [...prev, {
             id: data.id, match_id: data.match_id, sender_id: data.sender_id,
             content: data.content, media_url: data.media_url, sent_at: data.sent_at, read_at: null,
+            is_encrypted: data.is_encrypted, iv: data.iv,
+            user1_id: data.user1_id, user2_id: data.user2_id,
+            encrypted_key_user1: data.encrypted_key_user1, encrypted_key_user2: data.encrypted_key_user2,
           }]);
         } else if (data.type === "call-end" && data.message) {
           setMessages((prev) => [...prev, {
             id: data.message.id, match_id: data.message.match_id, sender_id: data.message.sender_id,
             content: data.message.content, media_url: null, sent_at: data.message.sent_at, read_at: null,
+            is_encrypted: false, iv: null,
+            user1_id: data.message.user1_id, user2_id: data.message.user2_id,
+            encrypted_key_user1: null, encrypted_key_user2: null,
           }]);
           call.handleSignal(data);
         } else if (data.type?.startsWith("call-")) {
@@ -190,14 +240,40 @@ export default function ChatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, matchId, info?.is_active]);
 
-  const handleSend = (e: FormEvent) => {
+  const handleSend = async (e: FormEvent) => {
     e.preventDefault();
-    if (!draft.trim()) return;
+    const text = draft.trim();
+    if (!text) return;
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       setUploadError("Connection lost - reconnecting, please try again in a moment.");
       return;
     }
-    wsRef.current.send(JSON.stringify({ type: "chat", content: draft.trim() }));
+
+    // Encrypt whenever both sides have a public key on file. If either
+    // hasn't generated one yet (e.g. the other person hasn't opened the
+    // app since this feature shipped), fall back to sending plain text
+    // rather than blocking the conversation entirely - is_encrypted stays
+    // false for that message, same as any pre-E2E message.
+    if (ownPublicKey && info?.other_public_key) {
+      try {
+        const enc = await encryptMessage(text, info.other_public_key, ownPublicKey);
+        wsRef.current.send(JSON.stringify({
+          type: "chat",
+          content: enc.ciphertext,
+          is_encrypted: true,
+          iv: enc.iv,
+          encrypted_key_user1: user?.id === info.user1_id ? enc.encryptedKeyForSelf : enc.encryptedKeyForRecipient,
+          encrypted_key_user2: user?.id === info.user2_id ? enc.encryptedKeyForSelf : enc.encryptedKeyForRecipient,
+        }));
+        setDraft("");
+        return;
+      } catch {
+        // Encryption failing (e.g. a corrupt local key) shouldn't lose the
+        // message entirely - fall through to sending it in plain text.
+      }
+    }
+
+    wsRef.current.send(JSON.stringify({ type: "chat", content: text }));
     setDraft("");
   };
 
@@ -325,7 +401,34 @@ export default function ChatPage() {
                         </button>
                       )
                     )}
-                    {m.content && <span className={m.media_url ? "block px-4 py-2.5" : ""}>{m.content}</span>}
+                    {m.content && (
+                      <span className={m.media_url ? "block px-4 py-2.5" : ""}>
+                        {m.is_encrypted ? (
+                          m.id in decrypted ? (
+                            decrypted[m.id] !== null ? (
+                              <>
+                                <svg
+                                  width="11" height="11" viewBox="0 0 24 24" fill="none"
+                                  stroke="currentColor" strokeWidth="2.2"
+                                  className="inline-block mr-1 mb-0.5 opacity-60"
+                                  aria-label="End-to-end encrypted"
+                                >
+                                  <rect x="4" y="11" width="16" height="9" rx="2" />
+                                  <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+                                </svg>
+                                {decrypted[m.id]}
+                              </>
+                            ) : (
+                              <span className="italic opacity-70">Can't decrypt on this device</span>
+                            )
+                          ) : (
+                            <span className="italic opacity-60">Decrypting…</span>
+                          )
+                        ) : (
+                          m.content
+                        )}
+                      </span>
+                    )}
                   </div>
                   <span className="text-[10px] font-mono text-slate mt-1 px-1">
                     {formatMessageTime(m.sent_at)}

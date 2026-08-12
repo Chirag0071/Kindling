@@ -45,3 +45,18 @@ def login(request: Request, payload: schemas.LoginRequest, db: Session = Depends
 @router.get("/me", response_model=schemas.UserOut)
 def get_me(current_user: models.User = Depends(auth.get_current_user)):
     return current_user
+
+
+@router.put("/public-key")
+def set_public_key(
+    payload: schemas.PublicKeyUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    # Called automatically by the client right after signup/login once it's
+    # generated (or confirmed it already has) a local keypair - see
+    # frontend/lib/crypto.ts ensureKeysReady(). The private key half never
+    # reaches this endpoint or the server at all.
+    current_user.public_key = payload.public_key
+    db.commit()
+    return {"status": "ok"}
