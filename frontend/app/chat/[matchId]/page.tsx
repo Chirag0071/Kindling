@@ -16,6 +16,31 @@ import type { ChatInfo, Message, CloseReason } from "@/lib/types";
 
 const VIDEO_EXT = /\.(mp4|webm|mov|quicktime)$/i;
 
+function formatDayLabel(dateStr: string): string {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(date)) / 86400000);
+
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays > 1 && diffDays < 7) return date.toLocaleDateString(undefined, { weekday: "long" });
+  return date.toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  });
+}
+
+function formatMessageTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function isSameDay(a: string, b: string): boolean {
+  const da = new Date(a), db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
+
 export default function ChatPage() {
   const { matchId } = useParams<{ matchId: string }>();
   const { user, loading: authLoading } = useAuth();
@@ -253,43 +278,59 @@ export default function ChatPage() {
         {messages.length === 0 && (
           <p className="text-center text-slate text-sm font-mono mt-10">Say hello — that's how it starts.</p>
         )}
-        {messages.map((m) => {
+        {messages.map((m, i) => {
           const mine = m.sender_id === user?.id;
           const isVideo = m.media_url ? VIDEO_EXT.test(m.media_url) : false;
+          const prev = messages[i - 1];
+          const showDaySeparator = !prev || !isSameDay(prev.sent_at, m.sent_at);
           return (
-            <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[75%] rounded-2xl overflow-hidden text-sm ${
-                  m.media_url ? "" : "px-4 py-2.5"
-                } ${mine ? "bg-ember text-birch rounded-br-md" : "bg-dusk-deep border border-ash text-birch rounded-bl-md"}`}
-              >
-                {m.media_url && (
-                  isVideo ? (
-                    <button
-                      type="button"
-                      onClick={() => openLightboxForMessage(m.id)}
-                      className="relative block w-56 h-72 group"
-                      aria-label="Open video"
-                    >
-                      <video src={getApiUrl(m.media_url)} muted className="h-full w-full object-cover rounded-t-2xl" />
-                      <span className="absolute inset-0 flex items-center justify-center bg-dusk-deep/20 group-hover:bg-dusk-deep/35 transition-colors">
-                        <span className="h-11 w-11 rounded-full bg-dusk-deep/70 flex items-center justify-center text-birch">
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
-                        </span>
-                      </span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => openLightboxForMessage(m.id)}
-                      className="relative block w-56 h-72"
-                      aria-label="Open photo"
-                    >
-                      <Image src={getApiUrl(m.media_url)} alt="" fill className="object-cover" />
-                    </button>
-                  )
-                )}
-                {m.content && <span className={m.media_url ? "block px-4 py-2.5" : ""}>{m.content}</span>}
+            <div key={m.id}>
+              {showDaySeparator && (
+                <div className="flex items-center justify-center py-2">
+                  <span className="text-[11px] font-mono text-slate bg-dusk-deep border border-ash rounded-full px-3 py-1">
+                    {formatDayLabel(m.sent_at)}
+                  </span>
+                </div>
+              )}
+              <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[75%] flex flex-col ${mine ? "items-end" : "items-start"}`}>
+                  <div
+                    className={`rounded-2xl overflow-hidden text-sm ${
+                      m.media_url ? "" : "px-4 py-2.5"
+                    } ${mine ? "bg-ember text-birch rounded-br-md" : "bg-dusk-deep border border-ash text-birch rounded-bl-md"}`}
+                  >
+                    {m.media_url && (
+                      isVideo ? (
+                        <button
+                          type="button"
+                          onClick={() => openLightboxForMessage(m.id)}
+                          className="relative block w-56 h-72 group"
+                          aria-label="Open video"
+                        >
+                          <video src={getApiUrl(m.media_url)} muted className="h-full w-full object-cover rounded-t-2xl" />
+                          <span className="absolute inset-0 flex items-center justify-center bg-dusk-deep/20 group-hover:bg-dusk-deep/35 transition-colors">
+                            <span className="h-11 w-11 rounded-full bg-dusk-deep/70 flex items-center justify-center text-birch">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                            </span>
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openLightboxForMessage(m.id)}
+                          className="relative block w-56 h-72"
+                          aria-label="Open photo"
+                        >
+                          <Image src={getApiUrl(m.media_url)} alt="" fill className="object-cover" />
+                        </button>
+                      )
+                    )}
+                    {m.content && <span className={m.media_url ? "block px-4 py-2.5" : ""}>{m.content}</span>}
+                  </div>
+                  <span className="text-[10px] font-mono text-slate mt-1 px-1">
+                    {formatMessageTime(m.sent_at)}
+                  </span>
+                </div>
               </div>
             </div>
           );
