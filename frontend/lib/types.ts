@@ -1,6 +1,7 @@
 export interface User {
   id: string;
   email: string;
+  public_key: string | null;
   is_verified: boolean;
   is_photo_verified: boolean;
   created_at: string;
@@ -24,7 +25,6 @@ export interface Profile {
   prompts: PromptAnswer[];
   latitude: number | null;
   longitude: number | null;
-  max_distance_km: number;
   age_min: number;
   age_max: number;
   is_complete: boolean;
@@ -76,6 +76,9 @@ export interface ChatInfo {
   other_user_id: string;
   other_first_name: string;
   other_photo_url: string | null;
+  other_public_key: string | null;
+  user1_id: string;
+  user2_id: string;
 }
 
 export interface ChatMediaUpload {
@@ -106,6 +109,16 @@ export interface Message {
   media_url: string | null;
   sent_at: string;
   read_at: string | null;
+
+  // End-to-end encryption fields - see frontend/lib/crypto.ts. When
+  // is_encrypted is false (default; always false for messages sent before
+  // this feature existed), `content` is plain text and the rest are null.
+  is_encrypted: boolean;
+  iv: string | null;
+  user1_id: string;
+  user2_id: string;
+  encrypted_key_user1: string | null;
+  encrypted_key_user2: string | null;
 }
 
 export interface MatchStatus {
