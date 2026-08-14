@@ -25,12 +25,17 @@ class TokenResponse(BaseModel):
 class UserOut(BaseModel):
     id: str
     email: EmailStr
+    public_key: Optional[str] = None
     is_verified: bool
     is_photo_verified: bool
     created_at: datetime
 
     class Config:
         from_attributes = True
+
+
+class PublicKeyUpdate(BaseModel):
+    public_key: str
 
 
 # ---- Profile ----
@@ -123,6 +128,9 @@ class ChatInfoOut(BaseModel):
     other_user_id: str
     other_first_name: str
     other_photo_url: Optional[str] = None
+    other_public_key: Optional[str] = None
+    user1_id: str
+    user2_id: str
 
 
 # ---- Stories ----
@@ -160,6 +168,17 @@ class MessageOut(BaseModel):
     media_url: Optional[str]
     sent_at: datetime
     read_at: Optional[datetime]
+
+    # End-to-end encryption fields. When is_encrypted is False (the default,
+    # and always true for messages sent before this feature existed),
+    # `content` is plain text and the fields below are all null - nothing
+    # about existing chats or clients that predate E2E breaks.
+    is_encrypted: bool = False
+    iv: Optional[str] = None
+    user1_id: str
+    user2_id: str
+    encrypted_key_user1: Optional[str] = None
+    encrypted_key_user2: Optional[str] = None
 
     class Config:
         from_attributes = True
