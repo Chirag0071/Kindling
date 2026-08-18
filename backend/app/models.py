@@ -181,6 +181,17 @@ class Block(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False, index=True)
+    token = Column(String, unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)  # created_at + 1h, enforced at use time
+    used_at = Column(DateTime, nullable=True)       # tokens are single-use
+
+
 class Report(Base):
     __tablename__ = "reports"
 
