@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     environment: str = "development"
     frontend_origin: str = "http://localhost:3000"
 
+    # Password reset emails. Free tier, no credit card. Leave blank for local
+    # dev - the reset link just gets logged to the console instead of
+    # emailed, so the flow is still testable without an account.
+    resend_api_key: str = ""
+    resend_from_email: str = "Kindling <onboarding@resend.dev>"
+
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
 
