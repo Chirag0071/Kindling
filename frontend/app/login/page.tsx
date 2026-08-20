@@ -59,6 +59,11 @@ export default function LoginPage() {
             required
             autoComplete="current-password"
           />
+          <p className="text-right -mt-2">
+            <Link href="/forgot-password" className="text-xs text-slate hover:text-ember transition-colors">
+              Forgot password?
+            </Link>
+          </p>
           {error && <p className="text-sm text-red-500">{error}</p>}
           <Button type="submit" loading={loading} className="w-full mt-2">
             Log in
