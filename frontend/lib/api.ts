@@ -90,6 +90,18 @@ export const auth = {
       method: "PUT",
       body: JSON.stringify({ public_key: publicKey }),
     }),
+
+  forgotPassword: (email: string) =>
+    request<{ status: string; detail: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }, false),
+
+  resetPassword: (token: string, newPassword: string) =>
+    request<{ status: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, new_password: newPassword }),
+    }, false),
 };
 
 // ---- Profile ----
